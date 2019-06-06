@@ -10,14 +10,14 @@
 
 #define BUF_SIZE 100
 #define MAX_CLNT 3
-#define SPEED 1000
+#define ElapsedTime 90
 
 typedef struct {
 	int x; // 단어의 x좌표
 	char word[20]; // 단어 저장
 } rain;
 
-unsigned WINAPI handle_clnt(void *arg);
+unsigned WINAPI start_game(void *arg);
 void acidRain(void);
 void initRain(void);
 unsigned WINAPI remove(void *data);
@@ -35,45 +35,45 @@ HANDLE cannot_mutx;
 double sec = 0.0;
 double ph[3] = { 7.0, };
 int threadExit = 1;
-char msg[BUF_SIZE] = { 0, };
+char msg[MAX_CLNT][BUF_SIZE] = { 0, };
 
 rain rains[21];
 char *words[35] = { // 단어 표본은 총 35개국의 수도 이름
-	"network",
-	"windows.h",
-	"thread",
-	"WSASocket",
-	"server",
-	"client",
-	"bind",
-	"connect",
-	"closesocket",
-	"TCP",
-	"ws2_32.lib",
-	"TTL",
-	"MULTICAST",
-	"SO_REUSEADDR",
-	"getsockopt",
-	"select",
-	"Overlapped IO",
-	"Nagle",
-	"IOCP",
-	"blocking",
-	"asynchronous",
-	"notification",
-	"signaled",
-	"FD_ACCEPT",
-	"WSACreateEvent",
-	"WSACloseEvent",
-	"mutex",
-	"semapohre",
-	"critical section",
-	"port",
-	"UDP",
-	"error",
-	"이정원",
-	"우지현",
-	"박서린"
+   "network",
+   "windows.h",
+   "thread",
+   "WSASocket",
+   "server",
+   "client",
+   "bind",
+   "connect",
+   "closesocket",
+   "TCP",
+   "ws2_32.lib",
+   "TTL",
+   "MULTICAST",
+   "SO_REUSEADDR",
+   "getsockopt",
+   "select",
+   "Overlapped IO",
+   "Nagle",
+   "IOCP",
+   "blocking",
+   "asynchronous",
+   "notification",
+   "signaled",
+   "FD_ACCEPT",
+   "WSACreateEvent",
+   "WSACloseEvent",
+   "mutex",
+   "semapohre",
+   "critical section",
+   "port",
+   "UDP",
+   "error",
+   "이정원",
+   "우지현",
+   "박서린"
 };
 
 int main()
@@ -121,17 +121,14 @@ int main()
 			clnt_socks[clnt_cnt++] = clnt_sock;
 			ReleaseMutex(mutx);
 
-			t_id = (HANDLE)_beginthreadex(NULL, 0, handle_clnt, (void*)&clnt_sock, 0, NULL);
+			t_id = (HANDLE)_beginthreadex(NULL, 0, start_game, (void*)&clnt_sock, 0, NULL);
 			WaitForSingleObject(t_id, INFINITE);
 			printf(" Connceted client IP : %s ", inet_ntoa(clnt_adr.sin_addr));
 			printf("(%d-%d-%d %d:%d)\n", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
 				t->tm_hour, t->tm_min);
 			printf(" chatter (%d/%d)\n", clnt_cnt, MAX_CLNT);
-
-			//printf("a\n");
-			tt_id = (HANDLE)_beginthreadex(NULL, 0, cannot_enter, (void*)&clnt_sock, 0, NULL);
 		}
-
+		
 		if (clnt_cnt == MAX_CLNT)
 			start_flag = 1;
 	}
@@ -140,41 +137,61 @@ int main()
 	return 0;
 }
 
-unsigned WINAPI handle_clnt(void *arg)
+unsigned WINAPI start_game(void *arg)
 {
-	SOCKET clnt_sock = *((SOCKET*)arg);
-	int str_len = 0, i;
-	char msg[BUF_SIZE] = { 0 };
-	char pmsg[BUF_SIZE] = { 0 };
+	SOCKET sock = *((SOCKET*)arg);
+	HANDLE thr_id;
+	double start, end; // 게임 시작 시간, 단어가 생성된 시간 기록
+	double sec; // 진행시간
+	int num = clnt_cnt;
+	int i;
 
-	rndMessage(msg);
-	send_msg(msg, str_len);
-	strcpy(pmsg, msg);
+	initRain();
+	
+	threadExit = 0;
+	thr_id = (HANDLE)_beginthreadex(NULL, 0, remove, (void*)&sock, 0, NULL);
 
-	while ((str_len = recv(clnt_sock, msg, sizeof(msg), 0)) != 0) {
-		// msg가 같으면 점수 획득
+	start = clock();
 
-		msg[str_len] = '\0';
-		printf("%s\n", msg);
+	while (1) {
+		sleep(100);
 
-		rndMessage(msg);
-		send_msg(msg, str_len);
-		msg[0] = '\0';
+		acidRain();
+		end = clock();
+		sec = (double)(end - start) / CLOCKS_PER_SEC;
+		
+
+		if (sec >= ElapsedTime) {
+			threadExit = 1;
+			WaitForSingleObject(thr_id, INFINITE);
+			break;
+		}
+
+		// client에게 구조체 넘기기
+		if (send(sock, (char *)&rains, sizeof(rain), 0) == SOCKET_ERROR) {
+			error_handling("send() struct error");
+			exit(1);
+		}
 	}
 
 	// remove disconnected client
-	WaitForSingleObject(mutx, INFINITE);
+	/*WaitForSingleObject(mutx, INFINITE);
 	for (i = 0; i < clnt_cnt; i++) {
-		if (clnt_sock == clnt_socks[i]) {
+		if (sock == clnt_socks[i]) {
 			while (i++ < clnt_cnt - 1)
 				clnt_socks[i] = clnt_socks[i + 1];
 			break;
 		}
-	}
+	}*/
+
+	/* ph 농도(점수)가 제일 높은 사람이 진다
+	 단어를 맞혔으면 점수 유지
+	 단어가 선을 넘어가면 점수 깎기(산성화)*/
+
 	clnt_cnt--;
 	ReleaseMutex(mutx);
 
-	closesocket(clnt_sock);
+	closesocket(sock);
 	return NULL;
 }
 
@@ -210,24 +227,26 @@ unsigned WINAPI remove(void *data)
 {
 	int i;
 
-	while (threadExit) {
+	while (!threadExit) {
 		gets(msg);
 		for (i = 0; i < 20; i++) {
-			if (strstr(rains[i].word, msg))
+			if (strstr(rains[i].word, msg)) {
 				strcpy(rains[i].word, " ");
+
+			}
 		}
 	}
 }
 
 /*void send_msg(char* msg, int len)
 {
-int i;
+	int i;
 
-WaitForSingleObject(mutx, INFINITE);
-for (i = 0; i < clnt_cnt; i++)
-send(clnt_socks[i], msg, len, 0);
-msg[0] = '\0';
-ReleaseMutex(mutx);
+	WaitForSingleObject(mutx, INFINITE);
+	for (i = 0; i < clnt_cnt; i++)
+		send(clnt_socks[i], msg, len, 0);
+	msg[0] = '\0';
+	ReleaseMutex(mutx);
 }*/
 
 void error_handling(char *msg)
