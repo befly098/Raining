@@ -92,6 +92,9 @@ int main()
 	if (listen(serv_sock, 5) == SOCKET_ERROR)
 		error_handling("listen() error");
 
+	initRain();
+	acidRain();
+
 	while (1) {
 		if (clnt_cnt < MAX_CLNT) {
 			t = localtime(&timer);
@@ -116,9 +119,11 @@ int main()
 			break;
 		}
 	}
-	
-	WaitForMultipleObject(t_id, INFINITE);
 
+	for (i = 0; i < clnt_cnt; i++)
+	{
+		WaitForSingleObject(t_id[i], INFINITE);
+	}
 
 	closesocket(serv_sock);
 	return 0;
@@ -137,53 +142,48 @@ unsigned WINAPI start_game(void* arg)
 	i = recv(sock, player_name, sizeof(player_name), 0);
 	player_name[i] = '\0';
 	printf("[notice]'%s' is ready\n", player_name);
-	
+
 	//wait for three players
 	//만약 게임 대기 중에 클라이언트가 나간다면, 소켓을 종료시키고 새로운 클라이언트를 받아야한다.
 	while (start_flag == 0) {
 		Sleep(1000);
-			if (send(sock, "-", sizeof("-"), 0) == SOCKET_ERROR) {
-				WaitForSingleObject(mutx, INFINITE);
-				clnt_cnt--;
-				ReleaseMutex(mutx);
-				printf("[notice]'%s' is out\n\n", player_name);
-				closesocket(sock);
-				printf("out\n");
-				return NULL;
-			}
+		if (send(sock, "-", sizeof("-"), 0) == SOCKET_ERROR) {
+			WaitForSingleObject(mutx, INFINITE);
+			clnt_cnt--;
+			ReleaseMutex(mutx);
+			printf("[notice]'%s' is out\n\n", player_name);
+			closesocket(sock);
+			printf("out\n");
+			return NULL;
+		}
 	}
 
 	if (send(sock, "start_g", strlen("start_g"), 0) == SOCKET_ERROR) {
 		out = 1;
 	}
 
-	initRain();
-
 	start = clock();
 
 	while (out != 1) {
 		Sleep(1000);
 
-		WaitForSingleObject(mutx, INFINITE);
-		acidRain();
-		ReleaseMutex(mutx);
 		end = clock();
 		sec = (double)(end - start) / CLOCKS_PER_SEC;
 
-		
+
 		if (sec >= ElapsedTime) {
 			break;
 		}
 
 		// client에게 구조체 넘기기
-		if (send(sock, (char*)& rains, sizeof(rain), 0) == SOCKET_ERROR) {
+		if ( SendMsg(sock) == 1) {
 			//클라이언트가 단어를 뿌려주는 와중에 떠났다면,
 			out = 1;
 			break;
 		}
 	}
 
-	sprintf(score_info, "player<<%s>>\tleft the game", player_name);
+	sprintf(score_info, "player<<%s>>\tleft the game\n", player_name);
 
 	//단어 뿌리기가 끝난 후 클라이언트가 종료했다면,
 	if (out != 1)
@@ -252,12 +252,29 @@ unsigned WINAPI start_game(void* arg)
 	}
 	ReleaseMutex(mutx);
 	/* ph 농도(점수)가 제일 높은 사람이 진다
-	 단어를 맞혔으면 점수 유지
-	 단어가 선을 넘어가면 점수 깎기(산성화)*/
+	단어를 맞혔으면 점수 유지
+	단어가 선을 넘어가면 점수 깎기(산성화)*/
 
 	closesocket(sock);
 
 	return NULL;
+}
+
+int SendMsg(SOCKET sock)   // send to all
+{
+	int i, snd;
+	int o = 0;
+	WaitForSingleObject(mutx, INFINITE);
+	// 임계영역의 시작 
+	for (i = 0; i < clnt_cnt; i++)
+	{
+		snd = send(clnt_socks[i], (char*)& rains, sizeof(rain), 0);  //동기화2, 하나의 뮤텍스를 대상으로 두 영역에서 동기화를 진행하고 있다. 
+		if (clnt_socks[i] == sock && snd == SOCKET_ERROR) o = 1;
+	}// 임계영역의 끝
+	acidRain();
+	ReleaseMutex(mutx);
+
+	return o;
 }
 
 void acidRain()
@@ -275,7 +292,7 @@ void acidRain()
 	}
 
 
-	WaitForSingleObject(mutx,INFINITE);
+	WaitForSingleObject(mutx, INFINITE);
 	rains[0].x = (rand() % 8) * 11 + (rand() % 5) * 9;
 	srand(time(NULL));
 	rand_num = rand() % 200;

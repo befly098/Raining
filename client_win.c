@@ -136,7 +136,7 @@ unsigned WINAPI send_msg(void* arg)
 	system("cls");
 	printf("loading the result...");
 	msg[0] = '\0';
-	sprintf(msg, "player<<%s>>:\t%.1lf", name, ph);
+	sprintf(msg, "player<<%s>>:\t%.1lf\n", name, ph);
 	msg[strlen(msg)] = '\0';
 	//send result to server
 	send(sock, msg, strlen(msg), 0);
