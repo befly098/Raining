@@ -54,7 +54,6 @@ int main()
 	int clnt_adr_sz;
 	int i = 0;
 	HANDLE t_id[MAX_CLNT];
-	HANDLE tt_id;
 	FILE* word_data;
 
 	//initialize word_info array
@@ -111,14 +110,16 @@ int main()
 			printf(" player (%d/%d)\n", clnt_cnt, MAX_CLNT);
 		}
 
+		//Sleep(100);
 		if (clnt_cnt == MAX_CLNT) {
 			start_flag = 1;
 			break;
 		}
 	}
-	for (i = 0; i < MAX_CLNT; i++) {
-		WaitForSingleObject(t_id[i], INFINITE);
-	}
+	
+	WaitForMultipleObject(t_id, INFINITE);
+
+
 	closesocket(serv_sock);
 	return 0;
 }
@@ -130,22 +131,38 @@ unsigned WINAPI start_game(void* arg)
 	double start, end; // 게임 시작 시간, 단어가 생성된 시간 기록
 	double sec; // 진행시간
 	rain end_game = { -1,"%end%" };
-	int i, leaved = 0;
+	int i, out = 0;
 	char score_info[100], player_name[21];
-
 
 	i = recv(sock, player_name, sizeof(player_name), 0);
 	player_name[i] = '\0';
 	printf("[notice]'%s' is ready\n", player_name);
+	
 	//wait for three players
-	while (start_flag == 0);
+	//만약 게임 대기 중에 클라이언트가 나간다면, 소켓을 종료시키고 새로운 클라이언트를 받아야한다.
+	while (start_flag == 0) {
+		Sleep(1000);
+			if (send(sock, "-", sizeof("-"), 0) == SOCKET_ERROR) {
+				WaitForSingleObject(mutx, INFINITE);
+				clnt_cnt--;
+				ReleaseMutex(mutx);
+				printf("[notice]'%s' is out\n\n", player_name);
+				closesocket(sock);
+				printf("out\n");
+				return NULL;
+			}
+	}
+
+	if (send(sock, "start_g", strlen("start_g"), 0) == SOCKET_ERROR) {
+		out = 1;
+	}
 
 	initRain();
 
 	start = clock();
 
-	while (1) {
-		Sleep(500);
+	while (out != 1) {
+		Sleep(1000);
 
 		WaitForSingleObject(mutx, INFINITE);
 		acidRain();
@@ -153,7 +170,7 @@ unsigned WINAPI start_game(void* arg)
 		end = clock();
 		sec = (double)(end - start) / CLOCKS_PER_SEC;
 
-
+		
 		if (sec >= ElapsedTime) {
 			break;
 		}
@@ -161,7 +178,7 @@ unsigned WINAPI start_game(void* arg)
 		// client에게 구조체 넘기기
 		if (send(sock, (char*)& rains, sizeof(rain), 0) == SOCKET_ERROR) {
 			//클라이언트가 단어를 뿌려주는 와중에 떠났다면,
-			leaved = 1;
+			out = 1;
 			break;
 		}
 	}
@@ -169,32 +186,32 @@ unsigned WINAPI start_game(void* arg)
 	sprintf(score_info, "player<<%s>>\tleft the game", player_name);
 
 	//단어 뿌리기가 끝난 후 클라이언트가 종료했다면,
-	if (leaved != 1)
+	if (out != 1)
 		//alert game is over to client
 		if (send(sock, (char*)& end_game, sizeof(rain), 0) == SOCKET_ERROR) {
-			leaved = 1;
+			out = 1;
 		}
 
 	//단어 뿌리기가 끝난 후 클라이언트가 종료했다면,
-	if (leaved != 1) {
+	if (out != 1) {
 		//receive client's score
 		//score_info[0] = '\0';
 		i = recv(sock, score_info, sizeof(score_info), 0);
 		if (i == SOCKET_ERROR) {
-			leaved = 1;
+			out = 1;
 		}
 		else
 			score_info[i] = '\0';
 	}
 
-	if (leaved == 1)
+	if (out == 1)
 		printf("[notice]: player <<%s>> left the game\n", player_name);
 
 	//msg에 각 플레이어의 점수 정보를 입력한다.
 	for (i = 0; i < clnt_cnt; i++) {
 		if (sock == clnt_socks[i]) {
 			WaitForSingleObject(mutx, INFINITE);
-			if (leaved != 1)
+			if (out != 1)
 				wait_for_sending_result++;
 			strcpy(msg[msg_index++], score_info);
 			ReleaseMutex(mutx);
@@ -204,12 +221,12 @@ unsigned WINAPI start_game(void* arg)
 
 	//도중에 떠나지 않은 플레이어의 점수를 모두 받기 위해 기다린다.
 	while (1) {
-		if (wait_for_sending_result == clnt_cnt || leaved == 1)
+		if (wait_for_sending_result == clnt_cnt || out == 1)
 			break;
 	}
 
 	//도중에 떠나지 않은 플레이어들에게 점수를 전달한다.
-	if (leaved != 1) {
+	if (out != 1) {
 		WaitForSingleObject(mutx, INFINITE);
 		for (i = 0; i < MAX_CLNT; i++) {
 			if (send(sock, msg[i], strlen(msg[i]), 0) == SOCKET_ERROR)
@@ -228,7 +245,7 @@ unsigned WINAPI start_game(void* arg)
 				i++;
 			}
 			clnt_cnt--;
-			if (leaved != 1)
+			if (out != 1)
 				wait_for_sending_result--;
 			break;
 		}
@@ -258,10 +275,11 @@ void acidRain()
 	}
 
 
+	WaitForSingleObject(mutx,INFINITE);
 	rains[0].x = (rand() % 8) * 11 + (rand() % 5) * 9;
 	srand(time(NULL));
-	rand_num = rand() % 100;
-
+	rand_num = rand() % 200;
+	ReleaseMutex(mutx);
 	while (word_info[rand_num].is_used == 1)
 		rand_num = rand() % 200;
 	word_info[rand_num].is_used = 1;

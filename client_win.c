@@ -48,6 +48,8 @@ int main(int argc, char* argv[])
 	SOCKET sock;
 	SOCKADDR_IN serv_addr;
 	HANDLE snd_thread, rcv_thread;
+	char check_connection[15];
+	int i;
 
 	printf("이름을 입력하세요 : ");
 	scanf("%s", name);
@@ -79,6 +81,14 @@ int main(int argc, char* argv[])
 	mutx = CreateMutex(NULL, FALSE, NULL);
 	send(sock, name, strlen(name), 0);
 
+	while (1) {
+		i = recv(sock, check_connection, sizeof(check_connection), 0);
+		check_connection[i] = '\0';
+		//printf("%s\n", check_connection);
+		if (strcmp(check_connection, "start_g") == 0)
+			break;
+	}
+
 	rcv_thread = (HANDLE)_beginthreadex(NULL, 0, recv_msg, (void*)& sock, 0, NULL);
 	snd_thread = (HANDLE)_beginthreadex(NULL, 0, send_msg, (void*)& sock, 0, NULL);
 	WaitForSingleObject(snd_thread, INFINITE);
@@ -99,7 +109,7 @@ unsigned WINAPI send_msg(void* arg)
 	char* who = NULL;
 	char temp[BUF_SIZE];
 
-	system("mode con:cols=200 lines=100 | title 산성비");
+	system("mode con:cols=120 lines=30 | title 산성비");
 	printf("waiting for another player...\n");
 
 	while (1)
@@ -150,9 +160,12 @@ unsigned WINAPI recv_msg(void* arg)
 	int i;
 	int sock = *((int*)arg);
 	int str_len;
-
+	char check_connection[15] = { 0 };
 	for (i = 0; i < 21; i++)
 		strcpy(rains[i].word, " ");
+
+	//서버가 게임을 시작할 준비가 됐을 때 탈출한다, 그 전까지는 클라이언트가 게임 대기 중에 나갔는지 확인하는 용도로 의미없는 메세지를 받음
+
 	while (1) {
 
 		//check if all word is disappeared
@@ -239,7 +252,7 @@ rain* recv_rain(void* arg)
 
 void prnscreen() // 화면 출력 함수
 {
-	int i;
+	int i,j;
 	HANDLE consoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 	int x, y;
 	if (flag == 1) {
@@ -250,19 +263,20 @@ void prnscreen() // 화면 출력 함수
 	move(0, 0);
 	for (i = 0; i < 23; i++) {
 		move(0, i);
-		printf("                                                                                                                                                                                            ");
+		//for(j=0;j<119;j++)
+			printf("                                                                                                                              ");
 	}
 	move(0, 0);
 	printf("player: <<%s>>", name);
 	move(0, 1);
-	printf("==================================================================================================================================================");
+	printf("=========================================================================================================");
 	for (i = 0; i < 20; i++)
 	{
 		move(0, 1 + (i + 1));
 		printf("%*s", rains[i].x, rains[i].word); // x좌표에 맞추어 가변적으로 단어 출력
 	}
 	move(0, 22);
-	printf("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~"); // 판정선(rains[20].word)
+	printf("~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~"); // 판정선(rains[20].word)
 	if (strcmp(rains[20].word, " ")) // 판정선에 단어가 남아있으면
 		ph -= 0.5; // 0.5씩 산성화 시킴
 
