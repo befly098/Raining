@@ -28,6 +28,7 @@ rain* recv_rain(void* arg);
 
 
 char name[NORMAL_SIZE];     // name
+char address[BUF_SIZE];     // ip address
 char serv_time[NORMAL_SIZE];        // server time
 char msg[BUF_SIZE] = { 0 };                    // msg
 char result_msg[MAX_CLNT][BUF_SIZE] = { 0 };
@@ -50,6 +51,8 @@ int main(int argc, char* argv[])
 
 	printf("이름을 입력하세요 : ");
 	scanf("%s", name);
+	printf("IP 주소를 입력하세요 : ");
+	scanf("%s", address);
 
 	/** local time **/
 	struct tm* t;
@@ -64,7 +67,7 @@ int main(int argc, char* argv[])
 	sock = socket(PF_INET, SOCK_STREAM, 0);
 	memset(&serv_addr, 0, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;
-	serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+	serv_addr.sin_addr.s_addr = inet_addr(address);
 	serv_addr.sin_port = htons(atoi("123456"));
 
 	if (connect(sock, (SOCKADDR*)& serv_addr, sizeof(serv_addr)) == SOCKET_ERROR)
@@ -112,13 +115,6 @@ unsigned WINAPI send_msg(void* arg)
 		move(1, 25);
 
 		msg[strlen(msg)] = '\0';
-
-		/*
-		if (!strcmp(msg, "q") || !strcmp(msg, "Q")) {
-			closesocket(sock);
-			exit(0);
-		}
-		*/
 
 		for (i = 0; i < 21; i++) {
 			if (!strcmp(rains[i].word, msg))
@@ -200,7 +196,7 @@ unsigned WINAPI recv_msg(void* arg)
 	}
 
 	system("cls");
-	printf("print any alphabet to see result....>");
+	printf("Insert any alphabet to see result....>");
 
 	return NULL;
 }

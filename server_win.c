@@ -39,9 +39,9 @@ HANDLE cannot_mutx;
 
 double sec = 0.0;
 double ph[3] = { 7.0, };
-int wait_for_sending_result=0;
+int wait_for_sending_result = 0;
 char msg[MAX_CLNT][BUF_SIZE] = { 0 };
-int msg_index=0;
+int msg_index = 0;
 
 rain rains[21];
 words word_info[200];
@@ -103,8 +103,8 @@ int main()
 			clnt_socks[clnt_cnt++] = clnt_sock;
 			ReleaseMutex(mutx);
 
-			t_id[clnt_cnt-1] = (HANDLE)_beginthreadex(NULL, 0, start_game, (void*)& clnt_sock, 0, NULL);
-			
+			t_id[clnt_cnt - 1] = (HANDLE)_beginthreadex(NULL, 0, start_game, (void*)& clnt_sock, 0, NULL);
+
 			printf(" Connceted client IP : %s ", inet_ntoa(clnt_adr.sin_addr));
 			printf("(%d-%d-%d %d:%d)\n", t->tm_year + 1900, t->tm_mon + 1, t->tm_mday,
 				t->tm_hour, t->tm_min);
@@ -130,13 +130,13 @@ unsigned WINAPI start_game(void* arg)
 	double start, end; // 게임 시작 시간, 단어가 생성된 시간 기록
 	double sec; // 진행시간
 	rain end_game = { -1,"%end%" };
-	int i,leaved=0;
-	char score_info[100],player_name[21];
+	int i, leaved = 0;
+	char score_info[100], player_name[21];
 
 
-	i=recv(sock, player_name, sizeof(player_name), 0);
+	i = recv(sock, player_name, sizeof(player_name), 0);
 	player_name[i] = '\0';
-	printf("[notice]'%s' is ready\n",player_name);
+	printf("[notice]'%s' is ready\n", player_name);
 	//wait for three players
 	while (start_flag == 0);
 
@@ -145,7 +145,7 @@ unsigned WINAPI start_game(void* arg)
 	start = clock();
 
 	while (1) {
-		Sleep(1000);
+		Sleep(500);
 
 		WaitForSingleObject(mutx, INFINITE);
 		acidRain();
@@ -166,10 +166,10 @@ unsigned WINAPI start_game(void* arg)
 		}
 	}
 
-	sprintf(score_info, "player<<%s>>\tleft the game",player_name);
+	sprintf(score_info, "player<<%s>>\tleft the game", player_name);
 
 	//단어 뿌리기가 끝난 후 클라이언트가 종료했다면,
-	if (leaved != 1) 
+	if (leaved != 1)
 		//alert game is over to client
 		if (send(sock, (char*)& end_game, sizeof(rain), 0) == SOCKET_ERROR) {
 			leaved = 1;
@@ -185,7 +185,7 @@ unsigned WINAPI start_game(void* arg)
 		}
 		else
 			score_info[i] = '\0';
-	}	
+	}
 
 	if (leaved == 1)
 		printf("[notice]: player <<%s>> left the game\n", player_name);
@@ -194,7 +194,7 @@ unsigned WINAPI start_game(void* arg)
 	for (i = 0; i < clnt_cnt; i++) {
 		if (sock == clnt_socks[i]) {
 			WaitForSingleObject(mutx, INFINITE);
-			if(leaved!=1)
+			if (leaved != 1)
 				wait_for_sending_result++;
 			strcpy(msg[msg_index++], score_info);
 			ReleaseMutex(mutx);
@@ -204,17 +204,17 @@ unsigned WINAPI start_game(void* arg)
 
 	//도중에 떠나지 않은 플레이어의 점수를 모두 받기 위해 기다린다.
 	while (1) {
-		if (wait_for_sending_result == clnt_cnt || leaved==1)
+		if (wait_for_sending_result == clnt_cnt || leaved == 1)
 			break;
 	}
-	
+
 	//도중에 떠나지 않은 플레이어들에게 점수를 전달한다.
 	if (leaved != 1) {
 		WaitForSingleObject(mutx, INFINITE);
-		for(i=0;i<MAX_CLNT;i++){
+		for (i = 0; i < MAX_CLNT; i++) {
 			if (send(sock, msg[i], strlen(msg[i]), 0) == SOCKET_ERROR)
 				error_handling("sending error");
-			
+
 		}
 		ReleaseMutex(mutx);
 	}
@@ -228,7 +228,7 @@ unsigned WINAPI start_game(void* arg)
 				i++;
 			}
 			clnt_cnt--;
-			if(leaved!=1)
+			if (leaved != 1)
 				wait_for_sending_result--;
 			break;
 		}
@@ -262,7 +262,7 @@ void acidRain()
 	srand(time(NULL));
 	rand_num = rand() % 100;
 
-	while(word_info[rand_num].is_used==1)
+	while (word_info[rand_num].is_used == 1)
 		rand_num = rand() % 200;
 	word_info[rand_num].is_used = 1;
 
