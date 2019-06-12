@@ -15,12 +15,12 @@
 #define ElapsedTime 20
 
 typedef struct {
-	int x; // ´Ü¾îÀÇ xÁÂÇ¥
-	char word[20]; // ´Ü¾î ÀúÀå
+	int x; // ë‹¨ì–´ì˜ xì¢Œí‘œ
+	char word[20]; // ë‹¨ì–´ ì €ì¥
 } rain;
 
 typedef struct {
-	int is_used; //1: »ç¿ëµÈ ´Ü¾î, 0: »ç¿ëµÇÁö ¾ÊÀº ´Ü¾î
+	int is_used; //1: ì‚¬ìš©ëœ ë‹¨ì–´, 0: ì‚¬ìš©ë˜ì§€ ì•Šì€ ë‹¨ì–´
 	char word[30];
 }words;
 
@@ -92,9 +92,6 @@ int main()
 	if (listen(serv_sock, 5) == SOCKET_ERROR)
 		error_handling("listen() error");
 
-	initRain();
-	acidRain();
-
 	while (1) {
 		if (clnt_cnt < MAX_CLNT) {
 			t = localtime(&timer);
@@ -119,11 +116,9 @@ int main()
 			break;
 		}
 	}
+	
+	WaitForMultipleObject(t_id, INFINITE);
 
-	for (i = 0; i < clnt_cnt; i++)
-	{
-		WaitForSingleObject(t_id[i], INFINITE);
-	}
 
 	closesocket(serv_sock);
 	return 0;
@@ -133,8 +128,8 @@ unsigned WINAPI start_game(void* arg)
 {
 	SOCKET sock = *((SOCKET*)arg);
 	HANDLE thr_id;
-	double start, end; // °ÔÀÓ ½ÃÀÛ ½Ã°£, ´Ü¾î°¡ »ı¼ºµÈ ½Ã°£ ±â·Ï
-	double sec; // ÁøÇà½Ã°£
+	double start, end; // ê²Œì„ ì‹œì‘ ì‹œê°„, ë‹¨ì–´ê°€ ìƒì„±ëœ ì‹œê°„ ê¸°ë¡
+	double sec; // ì§„í–‰ì‹œê°„
 	rain end_game = { -1,"%end%" };
 	int i, out = 0;
 	char score_info[100], player_name[21];
@@ -142,57 +137,62 @@ unsigned WINAPI start_game(void* arg)
 	i = recv(sock, player_name, sizeof(player_name), 0);
 	player_name[i] = '\0';
 	printf("[notice]'%s' is ready\n", player_name);
-
+	
 	//wait for three players
-	//¸¸¾à °ÔÀÓ ´ë±â Áß¿¡ Å¬¶óÀÌ¾ğÆ®°¡ ³ª°£´Ù¸é, ¼ÒÄÏÀ» Á¾·á½ÃÅ°°í »õ·Î¿î Å¬¶óÀÌ¾ğÆ®¸¦ ¹Ş¾Æ¾ßÇÑ´Ù.
+	//ë§Œì•½ ê²Œì„ ëŒ€ê¸° ì¤‘ì— í´ë¼ì´ì–¸íŠ¸ê°€ ë‚˜ê°„ë‹¤ë©´, ì†Œì¼“ì„ ì¢…ë£Œì‹œí‚¤ê³  ìƒˆë¡œìš´ í´ë¼ì´ì–¸íŠ¸ë¥¼ ë°›ì•„ì•¼í•œë‹¤.
 	while (start_flag == 0) {
 		Sleep(1000);
-		if (send(sock, "-", sizeof("-"), 0) == SOCKET_ERROR) {
-			WaitForSingleObject(mutx, INFINITE);
-			clnt_cnt--;
-			ReleaseMutex(mutx);
-			printf("[notice]'%s' is out\n\n", player_name);
-			closesocket(sock);
-			printf("out\n");
-			return NULL;
-		}
+			if (send(sock, "-", sizeof("-"), 0) == SOCKET_ERROR) {
+				WaitForSingleObject(mutx, INFINITE);
+				clnt_cnt--;
+				ReleaseMutex(mutx);
+				printf("[notice]'%s' is out\n\n", player_name);
+				closesocket(sock);
+				printf("out\n");
+				return NULL;
+			}
 	}
 
 	if (send(sock, "start_g", strlen("start_g"), 0) == SOCKET_ERROR) {
 		out = 1;
 	}
 
+	initRain();
+
 	start = clock();
 
 	while (out != 1) {
 		Sleep(1000);
 
+		WaitForSingleObject(mutx, INFINITE);
+		acidRain();
+		ReleaseMutex(mutx);
 		end = clock();
 		sec = (double)(end - start) / CLOCKS_PER_SEC;
 
-
+		
 		if (sec >= ElapsedTime) {
 			break;
 		}
 
-		// client¿¡°Ô ±¸Á¶Ã¼ ³Ñ±â±â
-		if ( SendMsg(sock) == 1) {
-			//Å¬¶óÀÌ¾ğÆ®°¡ ´Ü¾î¸¦ »Ñ·ÁÁÖ´Â ¿ÍÁß¿¡ ¶°³µ´Ù¸é,
+		// clientì—ê²Œ êµ¬ì¡°ì²´ ë„˜ê¸°ê¸°
+		if (send(sock, (char*)& rains, sizeof(rain), 0) == SOCKET_ERROR) {
+			//í´ë¼ì´ì–¸íŠ¸ê°€ ë‹¨ì–´ë¥¼ ë¿Œë ¤ì£¼ëŠ” ì™€ì¤‘ì— ë– ë‚¬ë‹¤ë©´,
 			out = 1;
 			break;
 		}
 	}
 
-	sprintf(score_info, "player<<%s>>\tleft the game\n", player_name);
+	sprintf(score_info, "player<<%s>>\tleft the game", player_name);
 
-	//´Ü¾î »Ñ¸®±â°¡ ³¡³­ ÈÄ Å¬¶óÀÌ¾ğÆ®°¡ Á¾·áÇß´Ù¸é,
+	//ë‹¨ì–´ ë¿Œë¦¬ê¸°ê°€ ëë‚œ í›„ í´ë¼ì´ì–¸íŠ¸ê°€ ì¢…ë£Œí–ˆë‹¤ë©´,
 	if (out != 1)
 		//alert game is over to client
 		if (send(sock, (char*)& end_game, sizeof(rain), 0) == SOCKET_ERROR) {
 			out = 1;
 		}
 
-	//´Ü¾î »Ñ¸®±â°¡ ³¡³­ ÈÄ Å¬¶óÀÌ¾ğÆ®°¡ Á¾·áÇß´Ù¸é,
+	//ë‹¨ì–´ ë¿Œë¦¬ê¸°ê°€ ëë‚œ í›„ í´ë¼ì´ì–¸íŠ¸ê°€ ì¢…ë£Œí–ˆë‹¤ë©´,
 	if (out != 1) {
 		//receive client's score
 		//score_info[0] = '\0';
@@ -207,7 +207,7 @@ unsigned WINAPI start_game(void* arg)
 	if (out == 1)
 		printf("[notice]: player <<%s>> left the game\n", player_name);
 
-	//msg¿¡ °¢ ÇÃ·¹ÀÌ¾îÀÇ Á¡¼ö Á¤º¸¸¦ ÀÔ·ÂÇÑ´Ù.
+	//msgì— ê° í”Œë ˆì´ì–´ì˜ ì ìˆ˜ ì •ë³´ë¥¼ ì…ë ¥í•œë‹¤.
 	for (i = 0; i < clnt_cnt; i++) {
 		if (sock == clnt_socks[i]) {
 			WaitForSingleObject(mutx, INFINITE);
@@ -219,13 +219,13 @@ unsigned WINAPI start_game(void* arg)
 		}
 	}
 
-	//µµÁß¿¡ ¶°³ªÁö ¾ÊÀº ÇÃ·¹ÀÌ¾îÀÇ Á¡¼ö¸¦ ¸ğµÎ ¹Ş±â À§ÇØ ±â´Ù¸°´Ù.
+	//ë„ì¤‘ì— ë– ë‚˜ì§€ ì•Šì€ í”Œë ˆì´ì–´ì˜ ì ìˆ˜ë¥¼ ëª¨ë‘ ë°›ê¸° ìœ„í•´ ê¸°ë‹¤ë¦°ë‹¤.
 	while (1) {
 		if (wait_for_sending_result == clnt_cnt || out == 1)
 			break;
 	}
 
-	//µµÁß¿¡ ¶°³ªÁö ¾ÊÀº ÇÃ·¹ÀÌ¾îµé¿¡°Ô Á¡¼ö¸¦ Àü´ŞÇÑ´Ù.
+	//ë„ì¤‘ì— ë– ë‚˜ì§€ ì•Šì€ í”Œë ˆì´ì–´ë“¤ì—ê²Œ ì ìˆ˜ë¥¼ ì „ë‹¬í•œë‹¤.
 	if (out != 1) {
 		WaitForSingleObject(mutx, INFINITE);
 		for (i = 0; i < MAX_CLNT; i++) {
@@ -251,30 +251,13 @@ unsigned WINAPI start_game(void* arg)
 		}
 	}
 	ReleaseMutex(mutx);
-	/* ph ³óµµ(Á¡¼ö)°¡ Á¦ÀÏ ³ôÀº »ç¶÷ÀÌ Áø´Ù
-	´Ü¾î¸¦ ¸ÂÇûÀ¸¸é Á¡¼ö À¯Áö
-	´Ü¾î°¡ ¼±À» ³Ñ¾î°¡¸é Á¡¼ö ±ğ±â(»ê¼ºÈ­)*/
+	/* ph ë†ë„(ì ìˆ˜)ê°€ ì œì¼ ë†’ì€ ì‚¬ëŒì´ ì§„ë‹¤
+	 ë‹¨ì–´ë¥¼ ë§í˜”ìœ¼ë©´ ì ìˆ˜ ìœ ì§€
+	 ë‹¨ì–´ê°€ ì„ ì„ ë„˜ì–´ê°€ë©´ ì ìˆ˜ ê¹ê¸°(ì‚°ì„±í™”)*/
 
 	closesocket(sock);
 
 	return NULL;
-}
-
-int SendMsg(SOCKET sock)   // send to all
-{
-	int i, snd;
-	int o = 0;
-	WaitForSingleObject(mutx, INFINITE);
-	// ÀÓ°è¿µ¿ªÀÇ ½ÃÀÛ 
-	for (i = 0; i < clnt_cnt; i++)
-	{
-		snd = send(clnt_socks[i], (char*)& rains, sizeof(rain), 0);  //µ¿±âÈ­2, ÇÏ³ªÀÇ ¹ÂÅØ½º¸¦ ´ë»óÀ¸·Î µÎ ¿µ¿ª¿¡¼­ µ¿±âÈ­¸¦ ÁøÇàÇÏ°í ÀÖ´Ù. 
-		if (clnt_socks[i] == sock && snd == SOCKET_ERROR) o = 1;
-	}// ÀÓ°è¿µ¿ªÀÇ ³¡
-	acidRain();
-	ReleaseMutex(mutx);
-
-	return o;
 }
 
 void acidRain()
@@ -292,7 +275,7 @@ void acidRain()
 	}
 
 
-	WaitForSingleObject(mutx, INFINITE);
+	WaitForSingleObject(mutx,INFINITE);
 	rains[0].x = (rand() % 8) * 11 + (rand() % 5) * 9;
 	srand(time(NULL));
 	rand_num = rand() % 200;
